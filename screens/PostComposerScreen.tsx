@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, Animated,
+  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, Animated, KeyboardAvoidingView, Platform, Keyboard, Pressable
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -11,25 +11,35 @@ import VideoPlayer from '../components/VideoPlayer';
 type Nav = NativeStackNavigationProp<RootStackParamList, 'PostComposer'>;
 type Route = RouteProp<RootStackParamList, 'PostComposer'>;
 
-type Platform = 'Instagram' | 'TikTok' | 'X' | 'LinkedIn';
-const PLATFORMS: Platform[] = ['Instagram', 'TikTok', 'X', 'LinkedIn'];
+type PlatformType = 'Instagram' | 'TikTok' | 'X' | 'LinkedIn';
+const PLATFORMS: PlatformType[] = ['Instagram', 'TikTok', 'X', 'LinkedIn'];
 
 export default function PostComposerScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
-  const { videoResult } = route.params;
+  const { videoResults } = route.params;
 
-  const [caption, setCaption] = useState(videoResult.caption);
-  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<Platform>>(new Set(['Instagram']));
+  const [captions, setCaptions] = useState<string[]>(
+    videoResults.map(v => v.caption || '')
+  );
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<PlatformType>>(new Set(['Instagram']));
   const [isPosting, setIsPosting] = useState(false);
   const [posted, setPosted] = useState(false);
   const successScale = useRef(new Animated.Value(0)).current;
 
-  const togglePlatform = (p: Platform) => {
+  const togglePlatform = (p: PlatformType) => {
     setSelectedPlatforms((prev) => {
       const next = new Set(prev);
       if (next.has(p)) next.delete(p);
       else next.add(p);
+      return next;
+    });
+  };
+
+  const handleCaptionChange = (text: string, index: number) => {
+    setCaptions(prev => {
+      const next = [...prev];
+      next[index] = text;
       return next;
     });
   };
@@ -69,72 +79,87 @@ export default function PostComposerScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.back}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>Post Your Content</Text>
-        </View>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss} accessible={false}>
+          <ScrollView contentContainerStyle={styles.scroll}>
+            <View style={styles.header}>
+              <TouchableOpacity onPress={() => navigation.goBack()}>
+                <Text style={styles.back}>← Back</Text>
+              </TouchableOpacity>
+              <Text style={styles.title}>Post Your Content</Text>
+              <Text style={styles.subtitle}>{videoResults.length} {videoResults.length === 1 ? 'video' : 'videos'} ready to publish</Text>
+            </View>
 
-        {/* Video Preview */}
-        <View style={styles.thumbnailCard}>
-          <VideoPlayer uri={videoResult.url} />
-        </View>
+            {/* Batch Video Feed */}
+            {videoResults.map((videoResult, index) => (
+              <View key={`feed-${index}`} style={styles.feedItem}>
+                <View style={styles.thumbnailCard}>
+                  <VideoPlayer uri={videoResult.url} />
+                </View>
+                
+                <View style={styles.captionCard}>
+                  <TextInput
+                    style={styles.captionInput}
+                    value={captions[index]}
+                    onChangeText={(text) => handleCaptionChange(text, index)}
+                    multiline
+                    maxLength={2200}
+                    placeholder={`Write a caption for video ${index + 1}...`}
+                    placeholderTextColor="#8A8A94"
+                  />
+                  <Text style={styles.charCount}>{captions[index].length} / 2200</Text>
+                </View>
+              </View>
+            ))}
 
-        {/* Caption */}
-        <View style={styles.captionCard}>
-          <TextInput
-            style={styles.captionInput}
-            value={caption}
-            onChangeText={setCaption}
-            multiline
-            maxLength={2200}
-            placeholderTextColor="#8A8A94"
-          />
-          <Text style={styles.charCount}>{caption.length} / 2200</Text>
-        </View>
+            {/* Platform chips */}
+            <Text style={styles.sectionHeader}>Platforms</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsRow}>
+              {PLATFORMS.map((p) => (
+                <TouchableOpacity
+                  key={p}
+                  style={[styles.chip, selectedPlatforms.has(p) && styles.chipSelected]}
+                  onPress={() => togglePlatform(p)}
+                >
+                  <Text style={[styles.chipText, selectedPlatforms.has(p) && styles.chipTextSelected]}>
+                    {p}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
 
-        {/* Platform chips */}
-        <Text style={styles.sectionHeader}>Platforms</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsRow}>
-          {PLATFORMS.map((p) => (
+          </ScrollView>
+
+          {/* Post CTA */}
+          <View style={styles.bottomBar}>
             <TouchableOpacity
-              key={p}
-              style={[styles.chip, selectedPlatforms.has(p) && styles.chipSelected]}
-              onPress={() => togglePlatform(p)}
+              style={[styles.postBtn, (selectedPlatforms.size === 0 || isPosting) && styles.postBtnDisabled]}
+              onPress={handlePost}
+              disabled={selectedPlatforms.size === 0 || isPosting}
             >
-              <Text style={[styles.chipText, selectedPlatforms.has(p) && styles.chipTextSelected]}>
-                {p}
-              </Text>
+              <Text style={styles.postBtnText}>{isPosting ? 'Posting...' : 'Post All Now'}</Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* Post CTA */}
-        <TouchableOpacity
-          style={[styles.postBtn, (selectedPlatforms.size === 0 || isPosting) && styles.postBtnDisabled]}
-          onPress={handlePost}
-          disabled={selectedPlatforms.size === 0 || isPosting}
-        >
-          <Text style={styles.postBtnText}>{isPosting ? 'Posting...' : 'Post Now'}</Text>
-        </TouchableOpacity>
-        <Text style={styles.demoNote}>This is a demo simulation — post dispatch is not live.</Text>
-      </ScrollView>
+            <Text style={styles.demoNote}>This is a demo simulation — post dispatch is not live.</Text>
+          </View>
+        </Pressable>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#0B0B0F' },
-  scroll: { padding: 20, paddingBottom: 60 },
+  scroll: { padding: 20, paddingBottom: 100 },
   header: { marginBottom: 20 },
   back: { color: '#8A8A94', fontSize: 15, marginBottom: 8 },
   title: { fontSize: 28, fontWeight: 'bold', color: '#F5F5F7' },
-  thumbnailCard: { backgroundColor: '#17171D', borderRadius: 16, overflow: 'hidden', marginBottom: 20 },
-  thumbnailPlaceholder: { height: 180, alignItems: 'center', justifyContent: 'center' },
-  thumbnailIcon: { fontSize: 32, color: '#7C5CFF' },
-  captionCard: { backgroundColor: '#17171D', borderRadius: 16, padding: 16, marginBottom: 24 },
+  subtitle: { fontSize: 15, color: '#8A8A94', marginTop: 4 },
+  feedItem: { marginBottom: 32 },
+  thumbnailCard: { backgroundColor: '#17171D', borderRadius: 16, overflow: 'hidden', marginBottom: 12 },
+  captionCard: { backgroundColor: '#17171D', borderRadius: 16, padding: 16 },
   captionInput: { color: '#F5F5F7', fontSize: 15, minHeight: 80, textAlignVertical: 'top' },
   charCount: { color: '#8A8A94', fontSize: 13, textAlign: 'right', marginTop: 8 },
   sectionHeader: { fontSize: 18, fontWeight: '600', color: '#8A8A94', marginBottom: 12 },
@@ -143,6 +168,7 @@ const styles = StyleSheet.create({
   chipSelected: { backgroundColor: '#7C5CFF', borderColor: '#7C5CFF' },
   chipText: { color: '#8A8A94', fontSize: 15 },
   chipTextSelected: { color: '#fff' },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: Platform.OS === 'ios' ? 20 : 36, backgroundColor: '#0B0B0F', borderTopWidth: 1, borderTopColor: '#17171D' },
   postBtn: { backgroundColor: '#7C5CFF', borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginBottom: 12 },
   postBtnDisabled: { opacity: 0.4 },
   postBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },

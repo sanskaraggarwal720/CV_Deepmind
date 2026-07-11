@@ -11,9 +11,9 @@ export type RootStackParamList = {
     subTasks: SubTask[];
   };
   VideoStudio: {
-    selectedImage: GeneratedImage;
+    selectedImages: GeneratedImage[];
   };
   PostComposer: {
-    videoResult: VideoResult;
+    videoResults: VideoResult[];
   };
 };

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, Keyboard, Pressable
+  View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, Keyboard, Pressable, Platform
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { generateVideo, editVideo } from '../lib/omniFlash';
+import { generateVideo } from '../lib/omniFlash';
 import { listModels, GeminiModel } from '../lib/gemma';
 import { VideoResult } from '../types';
 import VideoPlayer from '../components/VideoPlayer';
@@ -18,14 +18,18 @@ type Route = RouteProp<RootStackParamList, 'VideoStudio'>;
 export default function VideoStudioScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
-  const { selectedImage } = route.params;
+  const { selectedImages } = route.params;
 
-  const [videoResult, setVideoResult] = useState<VideoResult | null>(null);
-  const [isGenerating, setIsGenerating] = useState(true);
-  const [editInstruction, setEditInstruction] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
-  const [editHistory, setEditHistory] = useState<string[]>([]);
-  const [hasEdited, setHasEdited] = useState(false);
+  // Batch states
+  const [videoResults, setVideoResults] = useState<(VideoResult | null)[]>(
+    Array(selectedImages.length).fill(null)
+  );
+  const [isGeneratingMap, setIsGeneratingMap] = useState<boolean[]>(
+    Array(selectedImages.length).fill(true)
+  );
+  const [hasErrors, setHasErrors] = useState<boolean[]>(
+    Array(selectedImages.length).fill(false)
+  );
 
   // Model selection state
   const [availableModels, setAvailableModels] = useState<GeminiModel[]>([]);
@@ -39,56 +43,73 @@ export default function VideoStudioScreen() {
       const models = await listModels(apiKey);
       setAvailableModels(models);
       if (models.length > 0) {
-        // Try to default to a standard flash model, e.g. gemini-3.5-flash or 1.5-flash
+        // Try to default to a standard flash model
         const flashModel = models.find(m => m.name.includes('-flash') && !m.name.includes('lite') && !m.name.includes('thinking'));
         const defaultModel = flashModel ? flashModel.name : models[0].name;
         setSelectedModel(defaultModel);
-        runGeneration(defaultModel);
+        runBatchGeneration(defaultModel);
       } else {
-        setIsGenerating(false);
+        setIsGeneratingMap(Array(selectedImages.length).fill(false));
+        setHasErrors(Array(selectedImages.length).fill(true));
       }
       setIsLoadingModels(false);
     };
     fetchModels();
   }, []);
 
-  const runGeneration = (model: string) => {
-    setIsGenerating(true);
-    setVideoResult(null);
-    setEditHistory([]);
-    setHasEdited(false);
+  const runBatchGeneration = (model: string) => {
+    setVideoResults(Array(selectedImages.length).fill(null));
+    setIsGeneratingMap(Array(selectedImages.length).fill(true));
+    setHasErrors(Array(selectedImages.length).fill(false));
     
     const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
-    generateVideo(selectedImage, apiKey, model)
-      .then(setVideoResult)
-      .catch((err) => {
-        console.error("Video generation failed:", err);
-      })
-      .finally(() => setIsGenerating(false));
+    
+    // Fan out generation for all selected images in parallel
+    selectedImages.forEach((image, index) => {
+      generateVideo(image, apiKey, model)
+        .then((res) => {
+          setVideoResults((prev) => {
+            const next = [...prev];
+            next[index] = res;
+            return next;
+          });
+        })
+        .catch((err) => {
+          console.error(`Video generation failed for index ${index}:`, err);
+          setHasErrors((prev) => {
+            const next = [...prev];
+            next[index] = true;
+            return next;
+          });
+        })
+        .finally(() => {
+          setIsGeneratingMap((prev) => {
+            const next = [...prev];
+            next[index] = false;
+            return next;
+          });
+        });
+    });
   };
 
   const handleModelChange = (modelName: string) => {
     setSelectedModel(modelName);
     setIsDropdownOpen(false);
-    // Automatically regenerate when model changes
-    runGeneration(modelName);
+    // Automatically regenerate all when model changes
+    runBatchGeneration(modelName);
   };
 
-  const handleEdit = async () => {
-    if (!videoResult || !editInstruction.trim() || hasEdited) return;
-    const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
-    setIsEditing(true);
-    try {
-      const updated = await editVideo(videoResult, editInstruction.trim(), selectedImage, apiKey, selectedModel);
-      setVideoResult(updated);
-      setEditHistory((prev) => [...prev, editInstruction.trim()]);
-      setEditInstruction('');
-      setHasEdited(true); // only 1 edit turn per plan
-    } catch {}
-    setIsEditing(false);
+  const handleUseAll = () => {
+    const successfulVideos = videoResults.filter((v): v is VideoResult => v !== null);
+    if (successfulVideos.length === 0) return;
+    navigation.navigate('PostComposer', { videoResults: successfulVideos });
   };
 
   const activeModelDisplay = availableModels.find(m => m.name === selectedModel)?.displayName || 'Select a model';
+  
+  // Is ANY video currently generating?
+  const isAnyGenerating = isGeneratingMap.some(Boolean);
+  const successfulVideosCount = videoResults.filter(v => v !== null).length;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -99,6 +120,7 @@ export default function VideoStudioScreen() {
               <Text style={styles.back}>← Back</Text>
             </TouchableOpacity>
             <Text style={styles.title}>Video Studio</Text>
+            <Text style={styles.subtitle}>Batch processing {selectedImages.length} {selectedImages.length === 1 ? 'video' : 'videos'}</Text>
           </View>
 
           {/* Model Selection Dropdown */}
@@ -133,62 +155,40 @@ export default function VideoStudioScreen() {
             )}
           </View>
 
-          {/* Video or shimmer */}
-          {isGenerating ? (
-            <View style={styles.shimmerWrap}>
-              <SkeletonShimmer height={220} borderRadius={16} />
-              <Text style={styles.generatingLabel}>Generating video...</Text>
-            </View>
-          ) : videoResult?.url ? (
-            <VideoPlayer uri={videoResult.url} />
-          ) : (
-            <View style={styles.errorPlaceholder}>
-              <Text style={styles.errorText}>Video generation failed. Please try a different model.</Text>
-            </View>
-          )}
+          {/* Batch Feed */}
+          {selectedImages.map((image, i) => {
+            const isGenerating = isGeneratingMap[i];
+            const hasError = hasErrors[i];
+            const result = videoResults[i];
 
-          {/* Edit chips */}
-          {editHistory.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.editChips}>
-              {editHistory.map((e, i) => (
-                <View key={i} style={styles.editChip}>
-                  <Text style={styles.editChipText}>{e}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          )}
-
-          {/* Conversational edit input — only 1 turn allowed per plan */}
-          {!hasEdited && videoResult && (
-            <View style={styles.editRow}>
-              <TextInput
-                style={styles.editInput}
-                value={editInstruction}
-                onChangeText={setEditInstruction}
-                placeholder="Refine your video... (e.g. make it slower)"
-                placeholderTextColor="#8A8A94"
-                editable={!isEditing}
-              />
-              <TouchableOpacity
-                style={[styles.sendBtn, (!editInstruction.trim() || isEditing) && styles.sendBtnDisabled]}
-                onPress={handleEdit}
-                disabled={!editInstruction.trim() || isEditing}
-              >
-                {isEditing ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.sendBtnText}>→</Text>}
-              </TouchableOpacity>
-            </View>
-          )}
+            return (
+              <View key={`video-${i}`} style={styles.videoCard}>
+                {isGenerating ? (
+                  <View style={styles.shimmerWrap}>
+                    <SkeletonShimmer height={220} borderRadius={16} />
+                    <Text style={styles.generatingLabel}>Generating video {i + 1}...</Text>
+                  </View>
+                ) : hasError ? (
+                  <View style={styles.errorPlaceholder}>
+                    <Text style={styles.errorText}>Video generation failed.</Text>
+                  </View>
+                ) : result?.url ? (
+                  <VideoPlayer uri={result.url} />
+                ) : null}
+              </View>
+            );
+          })}
         </ScrollView>
       </Pressable>
 
-      {/* Use This CTA */}
-      {videoResult && (
+      {/* Use All CTA */}
+      {successfulVideosCount > 0 && !isAnyGenerating && (
         <View style={styles.bottomBar}>
           <TouchableOpacity
             style={styles.useBtn}
-            onPress={() => navigation.navigate('PostComposer', { videoResult })}
+            onPress={handleUseAll}
           >
-            <Text style={styles.useBtnText}>Use This →</Text>
+            <Text style={styles.useBtnText}>Use {successfulVideosCount} {successfulVideosCount === 1 ? 'Video' : 'Videos'} →</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -202,6 +202,7 @@ const styles = StyleSheet.create({
   header: { marginBottom: 16 },
   back: { color: '#8A8A94', fontSize: 15, marginBottom: 8 },
   title: { fontSize: 28, fontWeight: 'bold', color: '#F5F5F7' },
+  subtitle: { fontSize: 15, color: '#8A8A94', marginTop: 4 },
   dropdownContainer: { marginBottom: 20, zIndex: 10 },
   dropdownHeader: {
     backgroundColor: '#17171D',
@@ -227,20 +228,12 @@ const styles = StyleSheet.create({
   dropdownItemSelected: { backgroundColor: '#2A2A35' },
   dropdownItemText: { color: '#8A8A94', fontSize: 15 },
   dropdownItemTextSelected: { color: '#F5F5F7', fontWeight: '600' },
-  shimmerWrap: { marginBottom: 16 },
+  videoCard: { marginBottom: 24 },
+  shimmerWrap: {},
   generatingLabel: { color: '#3DDC97', fontSize: 13, marginTop: 8, textAlign: 'center' },
-  caption: { color: '#8A8A94', fontSize: 13, marginTop: 12, marginBottom: 16 },
-  editChips: { marginBottom: 16 },
-  editChip: { backgroundColor: '#17171D', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8 },
-  editChipText: { color: '#8A8A94', fontSize: 13 },
-  editRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#17171D', borderRadius: 12, padding: 4 },
-  editInput: { flex: 1, color: '#F5F5F7', fontSize: 15, paddingHorizontal: 12, paddingVertical: 8 },
-  sendBtn: { backgroundColor: '#7C5CFF', width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  sendBtnDisabled: { opacity: 0.4 },
-  sendBtnText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
   errorPlaceholder: { backgroundColor: '#17171D', height: 220, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   errorText: { color: '#FF5C5C', fontSize: 15, textAlign: 'center', paddingHorizontal: 24 },
-  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: 36, backgroundColor: '#0B0B0F', borderTopWidth: 1, borderTopColor: '#17171D' },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: Platform.OS === 'ios' ? 20 : 36, backgroundColor: '#0B0B0F', borderTopWidth: 1, borderTopColor: '#17171D' },
   useBtn: { backgroundColor: '#7C5CFF', borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
   useBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

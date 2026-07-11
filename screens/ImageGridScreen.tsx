@@ -55,7 +55,7 @@ export default function ImageGridScreen() {
 
   const handleAnimate = () => {
     if (selectedImages.length === 0) return;
-    navigation.navigate('VideoStudio', { selectedImage: selectedImages[0] });
+    navigation.navigate('VideoStudio', { selectedImages: selectedImages });
   };
 
   return (

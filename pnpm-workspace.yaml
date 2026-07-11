@@ -1,0 +1,4 @@
+allowBuilds:
+  react-native-litert-lm: set this to true or false
+minimumReleaseAgeExclude:
+  - react-native-litert-lm@0.5.0

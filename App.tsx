@@ -1,19 +1,12 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native';
 import LocalLLM from './components/LocalLLM';
 
 export default function App() {
   return (
-    <View style={styles.container}>
+    <SafeAreaView className="flex-1 bg-noir">
       <LocalLLM />
-      <StatusBar style="auto" />
-    </View>
+      <StatusBar style="light" />
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-});

@@ -37,7 +37,7 @@ export default function SupervisorScreen() {
     itemAnims.length = 0;
 
     const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
-    decomposeIntent(userPrompt, selectedTemplates, apiKey).then((tasks) => {
+    decomposeIntent(userPrompt, selectedTemplates, apiKey, route.params.selectedModel).then((tasks) => {
       if (!tasks || tasks.length === 0) {
         setError('Could not generate sub-tasks. Check your API key or try again.');
         return;

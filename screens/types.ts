@@ -5,6 +5,7 @@ export type RootStackParamList = {
   Supervisor: {
     userPrompt: string;
     selectedTemplates: TemplateId[];
+    selectedModel?: string; // The model selected by the user
   };
   ImageGrid: {
     subTasks: SubTask[];

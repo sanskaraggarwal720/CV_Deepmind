@@ -4,7 +4,8 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { generateVideo, editVideo, VIDEO_MODELS } from '../lib/omniFlash';
+import { generateVideo, editVideo } from '../lib/omniFlash';
+import { listModels, GeminiModel } from '../lib/gemma';
 import { VideoResult } from '../types';
 import VideoPlayer from '../components/VideoPlayer';
 import SkeletonShimmer from '../components/SkeletonShimmer';
@@ -27,11 +28,26 @@ export default function VideoStudioScreen() {
   const [hasEdited, setHasEdited] = useState(false);
 
   // Model selection state
-  const [selectedModel, setSelectedModel] = useState<string>(VIDEO_MODELS[0].name);
+  const [availableModels, setAvailableModels] = useState<GeminiModel[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isLoadingModels, setIsLoadingModels] = useState(true);
 
   useEffect(() => {
-    runGeneration(selectedModel);
+    const fetchModels = async () => {
+      const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
+      const models = await listModels(apiKey);
+      setAvailableModels(models);
+      if (models.length > 0) {
+        const defaultModel = models[0].name;
+        setSelectedModel(defaultModel);
+        runGeneration(defaultModel);
+      } else {
+        setIsGenerating(false);
+      }
+      setIsLoadingModels(false);
+    };
+    fetchModels();
   }, []);
 
   const runGeneration = (model: string) => {
@@ -70,7 +86,7 @@ export default function VideoStudioScreen() {
     setIsEditing(false);
   };
 
-  const activeModelDisplay = VIDEO_MODELS.find(m => m.name === selectedModel)?.displayName || 'Select a model';
+  const activeModelDisplay = availableModels.find(m => m.name === selectedModel)?.displayName || 'Select a model';
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -90,13 +106,17 @@ export default function VideoStudioScreen() {
               activeOpacity={0.8}
               onPress={() => setIsDropdownOpen(!isDropdownOpen)}
             >
-              <Text style={styles.dropdownHeaderText}>{activeModelDisplay}</Text>
+              {isLoadingModels ? (
+                <ActivityIndicator size="small" color="#7C5CFF" />
+              ) : (
+                <Text style={styles.dropdownHeaderText}>{activeModelDisplay}</Text>
+              )}
               {isDropdownOpen ? <ChevronUp color="#8A8A94" size={20} /> : <ChevronDown color="#8A8A94" size={20} />}
             </TouchableOpacity>
             
-            {isDropdownOpen && (
+            {isDropdownOpen && !isLoadingModels && (
               <View style={styles.dropdownList}>
-                {VIDEO_MODELS.map((model) => (
+                {availableModels.map((model) => (
                   <TouchableOpacity
                     key={model.name}
                     style={[styles.dropdownItem, selectedModel === model.name && styles.dropdownItemSelected]}

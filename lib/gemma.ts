@@ -1,10 +1,11 @@
 import { SubTask, TemplateId } from '../types';
 
-// Try newer models first, fall back to older ones that are always available
+// Try newest available models first, fall back to stable ones
 const MODELS = [
-  'gemini-2.5-flash-preview-05-20',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
+  'gemini-3.1-flash-lite',    // fastest internal preview
+  'gemini-3.5-flash',         // newer stable
+  'gemini-2.5-flash-lite',    // lighter 2.5
+  'gemini-2.0-flash',         // widely available fallback
 ];
 
 async function callGemini(model: string, body: object, apiKey: string): Promise<Response> {

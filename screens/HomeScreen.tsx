@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator,
+  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, Keyboard, Pressable
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -61,9 +61,10 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>Create Content</Text>
-        <Text style={styles.subtitle}>Describe your idea and pick a visual style</Text>
+      <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <Text style={styles.title}>Create Content</Text>
+          <Text style={styles.subtitle}>Describe your idea and pick a visual style</Text>
 
         {/* Prompt input */}
         <View style={styles.inputCard}>
@@ -138,6 +139,7 @@ export default function HomeScreen() {
           <Text style={styles.generateBtnText}>Generate Content →</Text>
         </TouchableOpacity>
       </ScrollView>
+      </Pressable>
     </SafeAreaView>
   );
 }

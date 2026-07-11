@@ -1,6 +1,10 @@
 import { GeneratedImage, VideoResult } from '../types';
 
-const OMNI_MODEL = 'gemini-omni-flash-preview';
+export const VIDEO_MODELS = [
+  { name: 'gemini-omni-flash-preview', displayName: 'gemini-omni-flash-preview' },
+  { name: 'gemini-2.5-flash', displayName: 'gemini-2.5-flash' }, // As a fallback if omni fails
+];
+
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 function buildVideoPrompt(image: GeneratedImage, instruction?: string): string {
@@ -10,11 +14,12 @@ function buildVideoPrompt(image: GeneratedImage, instruction?: string): string {
 
 export async function generateVideo(
   image: GeneratedImage,
-  apiKey: string
+  apiKey: string,
+  model: string = VIDEO_MODELS[0].name
 ): Promise<VideoResult> {
   const prompt = buildVideoPrompt(image);
 
-  const res = await fetch(`${BASE_URL}/models/${OMNI_MODEL}:generateContent`, {
+  const res = await fetch(`${BASE_URL}/models/${model}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({
@@ -62,7 +67,8 @@ export async function editVideo(
   videoResult: VideoResult,
   editInstruction: string,
   image: GeneratedImage,
-  apiKey: string
+  apiKey: string,
+  model: string = VIDEO_MODELS[0].name
 ): Promise<VideoResult> {
   // One edit turn — pass full conversation history for context
   const history = videoResult.conversationHistory.map((msg) => ({
@@ -72,7 +78,7 @@ export async function editVideo(
 
   const editPrompt = `Edit the video: ${editInstruction}`;
 
-  const res = await fetch(`${BASE_URL}/models/${OMNI_MODEL}:generateContent`, {
+  const res = await fetch(`${BASE_URL}/models/${model}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({

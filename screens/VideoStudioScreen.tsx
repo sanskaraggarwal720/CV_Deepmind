@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, Keyboard, Pressable
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { generateVideo, editVideo } from '../lib/omniFlash';
+import { generateVideo, editVideo, VIDEO_MODELS } from '../lib/omniFlash';
 import { VideoResult } from '../types';
 import VideoPlayer from '../components/VideoPlayer';
 import SkeletonShimmer from '../components/SkeletonShimmer';
 import { RootStackParamList } from './types';
+import { ChevronDown, ChevronUp } from 'lucide-react-native';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'VideoStudio'>;
 type Route = RouteProp<RootStackParamList, 'VideoStudio'>;
@@ -25,20 +26,42 @@ export default function VideoStudioScreen() {
   const [editHistory, setEditHistory] = useState<string[]>([]);
   const [hasEdited, setHasEdited] = useState(false);
 
+  // Model selection state
+  const [selectedModel, setSelectedModel] = useState<string>(VIDEO_MODELS[0].name);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
   useEffect(() => {
-    const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
-    generateVideo(selectedImage, apiKey)
-      .then(setVideoResult)
-      .catch(() => {})
-      .finally(() => setIsGenerating(false));
+    runGeneration(selectedModel);
   }, []);
+
+  const runGeneration = (model: string) => {
+    setIsGenerating(true);
+    setVideoResult(null);
+    setEditHistory([]);
+    setHasEdited(false);
+    
+    const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
+    generateVideo(selectedImage, apiKey, model)
+      .then(setVideoResult)
+      .catch((err) => {
+        console.error("Video generation failed:", err);
+      })
+      .finally(() => setIsGenerating(false));
+  };
+
+  const handleModelChange = (modelName: string) => {
+    setSelectedModel(modelName);
+    setIsDropdownOpen(false);
+    // Automatically regenerate when model changes
+    runGeneration(modelName);
+  };
 
   const handleEdit = async () => {
     if (!videoResult || !editInstruction.trim() || hasEdited) return;
     const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
     setIsEditing(true);
     try {
-      const updated = await editVideo(videoResult, editInstruction.trim(), selectedImage, apiKey);
+      const updated = await editVideo(videoResult, editInstruction.trim(), selectedImage, apiKey, selectedModel);
       setVideoResult(updated);
       setEditHistory((prev) => [...prev, editInstruction.trim()]);
       setEditInstruction('');
@@ -47,67 +70,99 @@ export default function VideoStudioScreen() {
     setIsEditing(false);
   };
 
+  const activeModelDisplay = VIDEO_MODELS.find(m => m.name === selectedModel)?.displayName || 'Select a model';
+
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.back}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>Video Studio</Text>
-        </View>
-
-        {/* Video or shimmer */}
-        {isGenerating ? (
-          <View style={styles.shimmerWrap}>
-            <SkeletonShimmer height={220} borderRadius={16} />
-            <Text style={styles.generatingLabel}>Generating video...</Text>
-          </View>
-        ) : videoResult?.url ? (
-          <VideoPlayer uri={videoResult.url} />
-        ) : (
-          <View style={styles.errorPlaceholder}>
-            <Text style={styles.errorText}>Video generation failed. Please try again.</Text>
-          </View>
-        )}
-
-        {/* AI-generated caption */}
-        {videoResult && (
-          <Text style={styles.caption}>{videoResult.caption}</Text>
-        )}
-
-        {/* Edit chips */}
-        {editHistory.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.editChips}>
-            {editHistory.map((e, i) => (
-              <View key={i} style={styles.editChip}>
-                <Text style={styles.editChipText}>{e}</Text>
-              </View>
-            ))}
-          </ScrollView>
-        )}
-
-        {/* Conversational edit input — only 1 turn allowed per plan */}
-        {!hasEdited && videoResult && (
-          <View style={styles.editRow}>
-            <TextInput
-              style={styles.editInput}
-              value={editInstruction}
-              onChangeText={setEditInstruction}
-              placeholder="Refine your video... (e.g. make it slower)"
-              placeholderTextColor="#8A8A94"
-              editable={!isEditing}
-            />
-            <TouchableOpacity
-              style={[styles.sendBtn, (!editInstruction.trim() || isEditing) && styles.sendBtnDisabled]}
-              onPress={handleEdit}
-              disabled={!editInstruction.trim() || isEditing}
-            >
-              {isEditing ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.sendBtnText}>→</Text>}
+      <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss} accessible={false}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <Text style={styles.back}>← Back</Text>
             </TouchableOpacity>
+            <Text style={styles.title}>Video Studio</Text>
           </View>
-        )}
-      </ScrollView>
+
+          {/* Model Selection Dropdown */}
+          <View style={styles.dropdownContainer}>
+            <TouchableOpacity 
+              style={styles.dropdownHeader} 
+              activeOpacity={0.8}
+              onPress={() => setIsDropdownOpen(!isDropdownOpen)}
+            >
+              <Text style={styles.dropdownHeaderText}>{activeModelDisplay}</Text>
+              {isDropdownOpen ? <ChevronUp color="#8A8A94" size={20} /> : <ChevronDown color="#8A8A94" size={20} />}
+            </TouchableOpacity>
+            
+            {isDropdownOpen && (
+              <View style={styles.dropdownList}>
+                {VIDEO_MODELS.map((model) => (
+                  <TouchableOpacity
+                    key={model.name}
+                    style={[styles.dropdownItem, selectedModel === model.name && styles.dropdownItemSelected]}
+                    onPress={() => handleModelChange(model.name)}
+                  >
+                    <Text style={[styles.dropdownItemText, selectedModel === model.name && styles.dropdownItemTextSelected]}>
+                      {model.displayName}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Video or shimmer */}
+          {isGenerating ? (
+            <View style={styles.shimmerWrap}>
+              <SkeletonShimmer height={220} borderRadius={16} />
+              <Text style={styles.generatingLabel}>Generating video...</Text>
+            </View>
+          ) : videoResult?.url ? (
+            <VideoPlayer uri={videoResult.url} />
+          ) : (
+            <View style={styles.errorPlaceholder}>
+              <Text style={styles.errorText}>Video generation failed. Please try a different model.</Text>
+            </View>
+          )}
+
+          {/* AI-generated caption */}
+          {videoResult && (
+            <Text style={styles.caption}>{videoResult.caption}</Text>
+          )}
+
+          {/* Edit chips */}
+          {editHistory.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.editChips}>
+              {editHistory.map((e, i) => (
+                <View key={i} style={styles.editChip}>
+                  <Text style={styles.editChipText}>{e}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+
+          {/* Conversational edit input — only 1 turn allowed per plan */}
+          {!hasEdited && videoResult && (
+            <View style={styles.editRow}>
+              <TextInput
+                style={styles.editInput}
+                value={editInstruction}
+                onChangeText={setEditInstruction}
+                placeholder="Refine your video... (e.g. make it slower)"
+                placeholderTextColor="#8A8A94"
+                editable={!isEditing}
+              />
+              <TouchableOpacity
+                style={[styles.sendBtn, (!editInstruction.trim() || isEditing) && styles.sendBtnDisabled]}
+                onPress={handleEdit}
+                disabled={!editInstruction.trim() || isEditing}
+              >
+                {isEditing ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.sendBtnText}>→</Text>}
+              </TouchableOpacity>
+            </View>
+          )}
+        </ScrollView>
+      </Pressable>
 
       {/* Use This CTA */}
       {videoResult && (
@@ -130,6 +185,31 @@ const styles = StyleSheet.create({
   header: { marginBottom: 16 },
   back: { color: '#8A8A94', fontSize: 15, marginBottom: 8 },
   title: { fontSize: 28, fontWeight: 'bold', color: '#F5F5F7' },
+  dropdownContainer: { marginBottom: 20, zIndex: 10 },
+  dropdownHeader: {
+    backgroundColor: '#17171D',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2A2A35',
+  },
+  dropdownHeaderText: { color: '#F5F5F7', fontSize: 15 },
+  dropdownList: {
+    backgroundColor: '#1C1C24',
+    borderRadius: 12,
+    marginTop: 8,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#2A2A35',
+  },
+  dropdownItem: { paddingHorizontal: 16, paddingVertical: 12 },
+  dropdownItemSelected: { backgroundColor: '#2A2A35' },
+  dropdownItemText: { color: '#8A8A94', fontSize: 15 },
+  dropdownItemTextSelected: { color: '#F5F5F7', fontWeight: '600' },
   shimmerWrap: { marginBottom: 16 },
   generatingLabel: { color: '#3DDC97', fontSize: 13, marginTop: 8, textAlign: 'center' },
   caption: { color: '#8A8A94', fontSize: 13, marginTop: 12, marginBottom: 16 },

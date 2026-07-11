@@ -1,8 +1,8 @@
 import { GeneratedImage, VideoResult } from '../types';
 
 export const VIDEO_MODELS = [
-  { name: 'gemini-omni-flash-preview', displayName: 'gemini-omni-flash-preview' },
-  { name: 'gemini-2.5-flash', displayName: 'gemini-2.5-flash' }, // As a fallback if omni fails
+  { name: 'gemini-3.5-flash', displayName: 'gemini-3.5-flash' },
+  { name: 'gemini-2.5-flash', displayName: 'gemini-2.5-flash' },
 ];
 
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
@@ -35,7 +35,8 @@ export async function generateVideo(
   });
 
   if (!res.ok) {
-    throw new Error(`Omni Flash error: ${res.status} ${res.statusText}`);
+    const errBody = await res.text().catch(() => '');
+    throw new Error(`Omni Flash error ${res.status}: ${errBody}`);
   }
 
   const json = await res.json();

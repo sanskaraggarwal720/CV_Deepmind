@@ -1,39 +1,44 @@
-import React, { useState, useRef } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Play, Pause } from 'lucide-react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 
 interface VideoPlayerProps {
   uri: string;
 }
 
 export default function VideoPlayer({ uri }: VideoPlayerProps) {
-  const videoRef = useRef<Video>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const togglePlay = async () => {
-    if (!videoRef.current) return;
+  const player = useVideoPlayer(uri, player => {
+    player.loop = true;
+    player.play();
+    setIsPlaying(true);
+  });
+
+  const togglePlay = () => {
     if (isPlaying) {
-      await videoRef.current.pauseAsync();
+      player.pause();
     } else {
-      await videoRef.current.playAsync();
+      player.play();
     }
-    setIsPlaying((prev) => !prev);
+    setIsPlaying(!isPlaying);
   };
 
   return (
     <View style={styles.container}>
-      <Video
-        ref={videoRef}
-        source={{ uri }}
-        style={styles.video}
-        resizeMode={ResizeMode.COVER}
-        isLooping
-        onPlaybackStatusUpdate={(status) => {
-          if (status.isLoaded) setIsPlaying(status.isPlaying);
-        }}
+      <VideoView 
+        style={styles.video} 
+        player={player} 
+        allowsFullscreen 
+        allowsPictureInPicture 
       />
-      <TouchableOpacity style={styles.playButton} onPress={togglePlay} activeOpacity={0.8}>
+      
+      <TouchableOpacity 
+        style={styles.playButton} 
+        onPress={togglePlay} 
+        activeOpacity={0.8}
+      >
         {isPlaying ? (
           <Pause size={28} color="#fff" fill="#fff" />
         ) : (

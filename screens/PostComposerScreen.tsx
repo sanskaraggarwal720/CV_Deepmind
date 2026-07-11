@@ -6,6 +6,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Check } from 'lucide-react-native';
 import { RootStackParamList } from './types';
+import VideoPlayer from '../components/VideoPlayer';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'PostComposer'>;
 type Route = RouteProp<RootStackParamList, 'PostComposer'>;
@@ -76,11 +77,9 @@ export default function PostComposerScreen() {
           <Text style={styles.title}>Post Your Content</Text>
         </View>
 
-        {/* Video thumbnail placeholder */}
+        {/* Video Preview */}
         <View style={styles.thumbnailCard}>
-          <View style={styles.thumbnailPlaceholder}>
-            <Text style={styles.thumbnailIcon}>▶</Text>
-          </View>
+          <VideoPlayer uri={videoResult.url} />
         </View>
 
         {/* Caption */}

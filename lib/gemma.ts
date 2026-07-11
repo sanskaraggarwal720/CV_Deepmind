@@ -28,12 +28,14 @@ export async function listModels(apiKey: string): Promise<GeminiModel[]> {
     return models
       .filter((m) => {
         // Only include models that support generateContent
-        const methods: string[] = m.supportedGenerationMethods ?? [];
-        return methods.includes('generateContent');
+        if (!m.supportedGenerationMethods?.includes('generateContent')) return false;
+        // Filter out known broken models for this API key (404 errors)
+        if (m.name.includes('gemini-2.5-flash')) return false;
+        return true;
       })
       .map((m) => ({
-        name: m.name,
-        displayName: (m.name as string).replace('models/', ''),
+        name: m.name.replace('models/', ''), // strip prefix for easier usage
+        displayName: m.displayName || m.name.replace('models/', ''),
       }));
   } catch (e) {
     console.warn('listModels error, using defaults:', e);

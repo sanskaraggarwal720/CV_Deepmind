@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, Animated } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, Animated, TouchableOpacity } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { decomposeIntent } from '../lib/gemma';
@@ -16,6 +16,7 @@ export default function SupervisorScreen() {
 
   const [subTasks, setSubTasks] = useState<SubTask[]>([]);
   const [visibleCount, setVisibleCount] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const dotAnim = useRef(new Animated.Value(0)).current;
   const itemAnims = useRef<Animated.Value[]>([]).current;
 
@@ -29,10 +30,18 @@ export default function SupervisorScreen() {
     ).start();
   }, []);
 
-  // Decompose intent and stagger sub-task chips
-  useEffect(() => {
+  const runDecompose = () => {
+    setError(null);
+    setSubTasks([]);
+    setVisibleCount(0);
+    itemAnims.length = 0;
+
     const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
     decomposeIntent(userPrompt, selectedTemplates, apiKey).then((tasks) => {
+      if (!tasks || tasks.length === 0) {
+        setError('Could not generate sub-tasks. Check your API key or try again.');
+        return;
+      }
       setSubTasks(tasks);
       tasks.forEach((_, i) => {
         itemAnims.push(new Animated.Value(0));
@@ -47,41 +56,60 @@ export default function SupervisorScreen() {
         navigation.replace('ImageGrid', { subTasks: tasks });
       }, 150 * tasks.length + 1200);
     });
-  }, []);
+  };
+
+  // Decompose intent on mount
+  useEffect(() => { runDecompose(); }, []);
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* Radial violet glow — the one gradient in the app */}
+      {/* Radial violet glow */}
       <View style={styles.glowContainer} pointerEvents="none">
         <View style={styles.glow} />
       </View>
 
       <View style={styles.content}>
-        <Animated.View style={[styles.dotRow, { opacity: dotAnim }]}>
-          <View style={styles.dot} />
-        </Animated.View>
-
-        <Text style={styles.title}>Gemma is thinking...</Text>
-        <Text style={styles.subtitle}>Decomposing your intent into generation sub-tasks</Text>
-
-        <View style={styles.chipList}>
-          {subTasks.slice(0, visibleCount).map((task, i) => (
-            <Animated.View
-              key={task.id}
-              style={[
-                styles.taskChip,
-                {
-                  opacity: itemAnims[i] ?? 1,
-                  transform: [{ translateY: (itemAnims[i] ?? new Animated.Value(1)).interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
-                },
-              ]}
-            >
-              <Text style={styles.taskChipText}>
-                ✦ Generating {task.template} variant...
-              </Text>
+        {error ? (
+          <>
+            <Text style={styles.errorIcon}>⚠️</Text>
+            <Text style={styles.title}>Something went wrong</Text>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={runDecompose}>
+              <Text style={styles.retryBtnText}>Try Again</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+              <Text style={styles.backBtnText}>← Go Back</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <Animated.View style={[styles.dotRow, { opacity: dotAnim }]}>
+              <View style={styles.dot} />
             </Animated.View>
-          ))}
-        </View>
+
+            <Text style={styles.title}>Gemma is thinking...</Text>
+            <Text style={styles.subtitle}>Decomposing your intent into generation sub-tasks</Text>
+
+            <View style={styles.chipList}>
+              {subTasks.slice(0, visibleCount).map((task, i) => (
+                <Animated.View
+                  key={task.id}
+                  style={[
+                    styles.taskChip,
+                    {
+                      opacity: itemAnims[i] ?? 1,
+                      transform: [{ translateY: (itemAnims[i] ?? new Animated.Value(1)).interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+                    },
+                  ]}
+                >
+                  <Text style={styles.taskChipText}>
+                    ✦ Generating {task.template} variant...
+                  </Text>
+                </Animated.View>
+              ))}
+            </View>
+          </>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -113,4 +141,16 @@ const styles = StyleSheet.create({
     borderLeftColor: '#7C5CFF',
   },
   taskChipText: { color: '#F5F5F7', fontSize: 15 },
+  errorIcon: { fontSize: 40, marginBottom: 16 },
+  errorText: { fontSize: 14, color: '#8A8A94', textAlign: 'center', marginBottom: 24, lineHeight: 20 },
+  retryBtn: {
+    backgroundColor: '#7C5CFF',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    marginBottom: 12,
+  },
+  retryBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  backBtn: { paddingVertical: 10 },
+  backBtnText: { color: '#8A8A94', fontSize: 15 },
 });

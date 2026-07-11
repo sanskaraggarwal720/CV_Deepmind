@@ -28,9 +28,10 @@
     "typescript": "~5.9.2"
   },
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --lan",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "ios:device": "REACT_NATIVE_PACKAGER_HOSTNAME=$(ipconfig getifaddr en0) expo run:ios --device",
     "web": "expo start --web"
   },
   "private": true

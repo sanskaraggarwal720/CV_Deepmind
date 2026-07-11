@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, Keyboard, Pressable
+  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator, Keyboard, Pressable, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -61,85 +61,92 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss} accessible={false}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>Create Content</Text>
-          <Text style={styles.subtitle}>Describe your idea and pick a visual style</Text>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss} accessible={false}>
+          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+            <Text style={styles.title}>Create Content</Text>
+            <Text style={styles.subtitle}>Describe your idea and pick a visual style</Text>
 
-        {/* Prompt input */}
-        <View style={styles.inputCard}>
-          <TextInput
-            style={styles.input}
-            value={userPrompt}
-            onChangeText={setUserPrompt}
-            placeholder="Describe your idea..."
-            placeholderTextColor="#8A8A94"
-            multiline
-            numberOfLines={4}
-          />
-        </View>
-
-        {/* Model Selection Dropdown */}
-        <Text style={styles.sectionHeader}>Gemini Model</Text>
-        <View style={styles.dropdownContainer}>
-          <TouchableOpacity 
-            style={styles.dropdownHeader} 
-            activeOpacity={0.8}
-            onPress={() => setIsDropdownOpen(!isDropdownOpen)}
-          >
-            {isLoadingModels ? (
-              <ActivityIndicator size="small" color="#7C5CFF" />
-            ) : (
-              <Text style={styles.dropdownHeaderText}>{activeModelDisplay}</Text>
-            )}
-            {isDropdownOpen ? <ChevronUp color="#8A8A94" size={20} /> : <ChevronDown color="#8A8A94" size={20} />}
-          </TouchableOpacity>
-          
-          {isDropdownOpen && !isLoadingModels && (
-            <View style={styles.dropdownList}>
-              {availableModels.map((model) => (
-                <TouchableOpacity
-                  key={model.name}
-                  style={[styles.dropdownItem, selectedModel === model.name && styles.dropdownItemSelected]}
-                  onPress={() => {
-                    setSelectedModel(model.name);
-                    setIsDropdownOpen(false);
-                  }}
-                >
-                  <Text style={[styles.dropdownItemText, selectedModel === model.name && styles.dropdownItemTextSelected]}>
-                    {model.displayName}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            {/* Prompt input */}
+            <View style={styles.inputCard}>
+              <TextInput
+                style={styles.input}
+                value={userPrompt}
+                onChangeText={setUserPrompt}
+                placeholder="Describe your idea..."
+                placeholderTextColor="#8A8A94"
+                multiline
+                numberOfLines={4}
+              />
             </View>
-          )}
-        </View>
 
-        {/* Template chips */}
-        <Text style={styles.sectionHeader}>Visual Style</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsRow}>
-          {TEMPLATES.map((t) => (
-            <TemplateChip
-              key={t.value}
-              label={t.label}
-              value={t.value}
-              selected={selectedTemplates.includes(t.value)}
-              onPress={toggleTemplate}
-            />
-          ))}
-        </ScrollView>
+            {/* Model Selection Dropdown */}
+            <Text style={styles.sectionHeader}>Gemini Model</Text>
+            <View style={styles.dropdownContainer}>
+              <TouchableOpacity 
+                style={styles.dropdownHeader} 
+                activeOpacity={0.8}
+                onPress={() => setIsDropdownOpen(!isDropdownOpen)}
+              >
+                {isLoadingModels ? (
+                  <ActivityIndicator size="small" color="#7C5CFF" />
+                ) : (
+                  <Text style={styles.dropdownHeaderText}>{activeModelDisplay}</Text>
+                )}
+                {isDropdownOpen ? <ChevronUp color="#8A8A94" size={20} /> : <ChevronDown color="#8A8A94" size={20} />}
+              </TouchableOpacity>
+              
+              {isDropdownOpen && !isLoadingModels && (
+                <View style={styles.dropdownList}>
+                  {availableModels.map((model) => (
+                    <TouchableOpacity
+                      key={model.name}
+                      style={[styles.dropdownItem, selectedModel === model.name && styles.dropdownItemSelected]}
+                      onPress={() => {
+                        setSelectedModel(model.name);
+                        setIsDropdownOpen(false);
+                      }}
+                    >
+                      <Text style={[styles.dropdownItemText, selectedModel === model.name && styles.dropdownItemTextSelected]}>
+                        {model.displayName}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
 
-        {/* Generate CTA */}
-        <TouchableOpacity
-          style={[styles.generateBtn, !canGenerate && styles.generateBtnDisabled]}
-          onPress={handleGenerate}
-          disabled={!canGenerate}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.generateBtnText}>Generate Content →</Text>
-        </TouchableOpacity>
-      </ScrollView>
-      </Pressable>
+            {/* Template chips */}
+            <Text style={styles.sectionHeader}>Visual Style</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsRow}>
+              {TEMPLATES.map((t) => (
+                <TemplateChip
+                  key={t.value}
+                  label={t.label}
+                  value={t.value}
+                  selected={selectedTemplates.includes(t.value)}
+                  onPress={toggleTemplate}
+                />
+              ))}
+            </ScrollView>
+          </ScrollView>
+
+          {/* Generate CTA Fixed at Bottom */}
+          <View style={styles.bottomBar}>
+            <TouchableOpacity
+              style={[styles.generateBtn, !canGenerate && styles.generateBtnDisabled]}
+              onPress={handleGenerate}
+              disabled={!canGenerate}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.generateBtnText}>Generate Content →</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -218,4 +225,11 @@ const styles = StyleSheet.create({
   },
   generateBtnDisabled: { opacity: 0.4 },
   generateBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  bottomBar: { 
+    padding: 20, 
+    paddingBottom: Platform.OS === 'ios' ? 20 : 36, 
+    backgroundColor: '#0B0B0F', 
+    borderTopWidth: 1, 
+    borderTopColor: '#17171D' 
+  },
 });

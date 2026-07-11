@@ -39,7 +39,9 @@ export default function VideoStudioScreen() {
       const models = await listModels(apiKey);
       setAvailableModels(models);
       if (models.length > 0) {
-        const defaultModel = models[0].name;
+        // Try to default to a standard flash model, e.g. gemini-3.5-flash or 1.5-flash
+        const flashModel = models.find(m => m.name.includes('-flash') && !m.name.includes('lite') && !m.name.includes('thinking'));
+        const defaultModel = flashModel ? flashModel.name : models[0].name;
         setSelectedModel(defaultModel);
         runGeneration(defaultModel);
       } else {
@@ -143,11 +145,6 @@ export default function VideoStudioScreen() {
             <View style={styles.errorPlaceholder}>
               <Text style={styles.errorText}>Video generation failed. Please try a different model.</Text>
             </View>
-          )}
-
-          {/* AI-generated caption */}
-          {videoResult && (
-            <Text style={styles.caption}>{videoResult.caption}</Text>
           )}
 
           {/* Edit chips */}

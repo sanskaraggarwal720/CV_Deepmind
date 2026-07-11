@@ -25,10 +25,13 @@ async function runSpikes() {
 
   console.log("Running Omni Flash spike...");
   try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-omni-flash-preview:generateContent', {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({ contents: [{ parts: [{ text: 'generate a test video' }] }] })
+      body: JSON.stringify({
+        model: 'gemini-omni-flash-preview',
+        input: 'generate a test video'
+      })
     });
     console.log("Omni Flash Status:", res.status);
     const json = await res.json();

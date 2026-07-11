@@ -25,11 +25,12 @@ export default function VideoStudioScreen() {
     Array(selectedImages.length).fill(null)
   );
   const [isGeneratingMap, setIsGeneratingMap] = useState<boolean[]>(
-    Array(selectedImages.length).fill(true)
+    Array(selectedImages.length).fill(false)
   );
   const [hasErrors, setHasErrors] = useState<boolean[]>(
     Array(selectedImages.length).fill(false)
   );
+  const [hasStartedGeneration, setHasStartedGeneration] = useState(false);
 
   // Model selection state
   const [availableModels, setAvailableModels] = useState<GeminiModel[]>([]);
@@ -47,10 +48,6 @@ export default function VideoStudioScreen() {
         const flashModel = models.find(m => m.name.includes('-flash') && !m.name.includes('lite') && !m.name.includes('thinking'));
         const defaultModel = flashModel ? flashModel.name : models[0].name;
         setSelectedModel(defaultModel);
-        runBatchGeneration(defaultModel);
-      } else {
-        setIsGeneratingMap(Array(selectedImages.length).fill(false));
-        setHasErrors(Array(selectedImages.length).fill(true));
       }
       setIsLoadingModels(false);
     };
@@ -58,6 +55,7 @@ export default function VideoStudioScreen() {
   }, []);
 
   const runBatchGeneration = (model: string) => {
+    setHasStartedGeneration(true);
     setVideoResults(Array(selectedImages.length).fill(null));
     setIsGeneratingMap(Array(selectedImages.length).fill(true));
     setHasErrors(Array(selectedImages.length).fill(false));
@@ -95,8 +93,6 @@ export default function VideoStudioScreen() {
   const handleModelChange = (modelName: string) => {
     setSelectedModel(modelName);
     setIsDropdownOpen(false);
-    // Automatically regenerate all when model changes
-    runBatchGeneration(modelName);
   };
 
   const handleUseAll = () => {
@@ -155,29 +151,49 @@ export default function VideoStudioScreen() {
             )}
           </View>
 
-          {/* Batch Feed */}
-          {selectedImages.map((image, i) => {
-            const isGenerating = isGeneratingMap[i];
-            const hasError = hasErrors[i];
-            const result = videoResults[i];
+          {/* Batch Feed OR Generate Button */}
+          {!hasStartedGeneration ? (
+            <View style={styles.startGenerationContainer}>
+              <Text style={styles.startGenerationText}>
+                Ready to generate {selectedImages.length} {selectedImages.length === 1 ? 'video' : 'videos'}?
+              </Text>
+              <TouchableOpacity
+                style={styles.generateBtn}
+                onPress={() => runBatchGeneration(selectedModel)}
+              >
+                <Text style={styles.generateBtnText}>Start Generation →</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            selectedImages.map((image, i) => {
+              const isGenerating = isGeneratingMap[i];
+              const hasError = hasErrors[i];
+              const result = videoResults[i];
 
-            return (
-              <View key={`video-${i}`} style={styles.videoCard}>
-                {isGenerating ? (
-                  <View style={styles.shimmerWrap}>
-                    <SkeletonShimmer height={220} borderRadius={16} />
-                    <Text style={styles.generatingLabel}>Generating video {i + 1}...</Text>
-                  </View>
-                ) : hasError ? (
-                  <View style={styles.errorPlaceholder}>
-                    <Text style={styles.errorText}>Video generation failed.</Text>
-                  </View>
-                ) : result?.url ? (
-                  <VideoPlayer uri={result.url} />
-                ) : null}
-              </View>
-            );
-          })}
+              return (
+                <View key={`video-${i}`} style={styles.videoCard}>
+                  {isGenerating ? (
+                    <View style={styles.shimmerWrap}>
+                      <SkeletonShimmer height={220} borderRadius={16} />
+                      <Text style={styles.generatingLabel}>Generating video {i + 1}...</Text>
+                    </View>
+                  ) : hasError ? (
+                    <View style={styles.errorPlaceholder}>
+                      <Text style={styles.errorText}>Video generation failed. Please try a different model.</Text>
+                      <TouchableOpacity
+                        style={styles.retryBtn}
+                        onPress={() => runBatchGeneration(selectedModel)}
+                      >
+                        <Text style={styles.retryBtnText}>Retry All</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : result?.url ? (
+                    <VideoPlayer uri={result.url} />
+                  ) : null}
+                </View>
+              );
+            })
+          )}
         </ScrollView>
       </Pressable>
 
@@ -232,7 +248,13 @@ const styles = StyleSheet.create({
   shimmerWrap: {},
   generatingLabel: { color: '#3DDC97', fontSize: 13, marginTop: 8, textAlign: 'center' },
   errorPlaceholder: { backgroundColor: '#17171D', height: 220, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  errorText: { color: '#FF5C5C', fontSize: 15, textAlign: 'center', paddingHorizontal: 24 },
+  errorText: { color: '#FF5C5C', fontSize: 15, textAlign: 'center', paddingHorizontal: 24, marginBottom: 12 },
+  retryBtn: { backgroundColor: '#2A2A35', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
+  retryBtnText: { color: '#F5F5F7', fontSize: 13, fontWeight: '600' },
+  startGenerationContainer: { alignItems: 'center', justifyContent: 'center', marginTop: 40, paddingHorizontal: 20 },
+  startGenerationText: { color: '#8A8A94', fontSize: 16, marginBottom: 24, textAlign: 'center' },
+  generateBtn: { backgroundColor: '#7C5CFF', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 16, width: '100%', alignItems: 'center' },
+  generateBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: Platform.OS === 'ios' ? 20 : 36, backgroundColor: '#0B0B0F', borderTopWidth: 1, borderTopColor: '#17171D' },
   useBtn: { backgroundColor: '#7C5CFF', borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
   useBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },

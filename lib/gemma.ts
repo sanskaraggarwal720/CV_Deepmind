@@ -31,6 +31,7 @@ export async function listModels(apiKey: string): Promise<GeminiModel[]> {
         if (!m.supportedGenerationMethods?.includes('generateContent')) return false;
         // Filter out known broken models for this API key (404 errors)
         if (m.name.includes('gemini-2.5-flash')) return false;
+        if (m.name.includes('gemini-2.0-flash')) return false;
         return true;
       })
       .map((m) => ({
